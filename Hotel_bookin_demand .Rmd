@@ -1,0 +1,196 @@
+---
+title: 'Team project: Checkpoint'
+author: "Burcu Oskay & Lorraine Analia Aglen"
+subtitle: R for Data Science @ Hult IBS
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    highlight: pygments
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+# Set-up {-}
+  
+```{r load packages, message=FALSE, warning=FALSE}
+library(tidyverse) # meta package to load necessary packages such as ggplot & dplyr
+
+```
+
+# Abstract
+
+## Topic
+
+Our topic for this project is about customers behavior towards the cancelation of hotel bookings.
+
+## Motivation and background
+
+According to [a research](https://ttu-ir.tdl.org/bitstream/handle/2346/58666/CHEN-DISSERTATION-2014.pdf?sequence=1&isAllowed=y) and [an article](https://www.phocuswire.com/Hotel-distribution-market-share-distribution-analysis#:~:text=The%20average%20cancelation%20rate%20in,of%206.4%25%20over%20four%20years), the hospitality industry's average cancelation rates have rapidly increased by up to 6.4 % over four years. Increasing booking cancelations causes a significant financial risk for the hotel management and the hotel’s most valuable assets, which is inventory. That's why we want to conduct a research about which factors causing cancelation.
+
+## Objectives
+
+Our objective for this project is to understand the customers' behavior that may can be explained by identifying and analyzing some factors that could trigger customers to cancel their reservations. Those factors are the lead time reservation, market segmentation, customer types, and seasonal time.
+
+## Plan
+
+The process of analysis will be the following steps:
+
+1. Defining the business problems or questions.
+2. Understanding the datasets by analyzing and identifying the important variables and its values.
+3. Removing columns that unnecessary for the analysis.
+4. Summarizing and visualizing the important variables to obtain insights that may reflect our assumptions, hypoteses and further analysis.
+5. Analyzing the relationships between hotel cancelation and the factor variables.
+
+# Data 
+
+## Background
+
+The hotel booking dataset consists of a city hotel and resort hotel comprehensive booking information from 2015 - 2017, e.g., when the booking was made, day/week/year of the arrival date, how the reservation was made, i.e., through an online travel agent or corporate, reservation status, special requests, the number of children, and customer types, i.e., staying at the hotel alone or by group, and other insightful columns.
+
+The dataset was obtained from [Jesse Mostipak, Kaggle](https://www.kaggle.com/jessemostipak/hotel-booking-demand). According to the page, the data is originally from the article [Hotel Booking Demand](Datasetshttps://www.sciencedirect.com/science/article/pii/S2352340918315191), written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019.
+
+## Key variables
+
+```{r load data, message=FALSE, warning=FALSE}
+# load data here
+hotel_booking <- read_csv("hotel_bookings.csv")
+```
+
+First 5 rows of the dataset:
+```{r first five rows}
+# e.g. diamonds %>% slice_head(n=5) 
+slice_head(hotel_booking, n = 5)
+```
+
+These are the key variables:
+
+1. **is_canceled** describes the hotel reservation status, denoted by (1) was canceled or (0) not canceled.
+
+2. **hotel** describes the type of hotel, either it's a city hotel or a resort hotel.
+
+3. **lead_time** represents the number of days between the booking date until the arrival date.
+
+4. **arrival_date_month** represents customers' arrival dates that could lead to seasonality.
+
+5. **market_segments** represents the medium segmentation where customers make reservations, e.g., travel agents or tour operators.
+
+6. **customer_type** describes what kind of customer book a hotel, e.g., group of people, transient or contract.
+
+
+# Exploratory data analysis
+
+## 1. Cancelation by Hotel Type
+```{r Cancelation by Hotel Type}
+hotel_booking %>% 
+  ggplot(data = ., aes(x = hotel, y = prop.table(stat(count)), fill = factor(is_canceled), label = scales::percent(prop.table(stat(count))))) +
+  geom_bar(position = "dodge") +
+  geom_text(stat = "count", position = position_dodge(0.8), vjust = -0.5) +
+  labs(x = "Type of Hotel", y = "Percentage (%)") +
+  ggtitle("Reservation Status by Type of Hotel") +
+  theme(plot.title = element_text(size = 12, hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Reservation Status", breaks = c("0", "1"), labels = c("Not Cancelled", "Cancelled")) +
+  theme_classic()
+```
+The proportion of cancelation rates in city hotels (41,7%) is 14% higher than resort hotels (27,7%). City hotel has the higher cancelation rates.
+
+## 2. Cancelation by Lead Time
+
+```{r Cancelation by Lead Time}
+hotel_booking %>% 
+  ggplot(data = ., aes(x = lead_time, fill = factor(is_canceled))) +
+  geom_histogram(alpha = 0.75, position = "identity") +
+  ggtitle("Lead Time") +
+  labs(x = "Lead Time", y = "Frequency") +
+  scale_fill_discrete(name = "Reservation Status", breaks = c("0", "1"), labels = c("Not Cancelled", "Cancelled")) +
+  theme_classic()
+```
+Customers who made reservations on the same day or approaching the stay at the hotels are less likely to cancel their rooms. Otherwise, customers are likely to cancel if they made early bookings.
+
+```{r}
+hotel_booking %>% 
+  #filter(lead_time < 200) %>% 
+  ggplot(data = ., aes(x = lead_time)) +
+  geom_boxplot() +
+  facet_wrap(~hotel) +
+  labs(title = "Lead Time Boxplot by Type of Hotel", x = "Lead Time") +
+  theme_classic()
+```
+There are a lot of outliers that represents many people were booking their reservation very advanced. This could be normal because people can book their room for up to 3 years [based on research](https://awardwallet.com/blog/far-advance-can-book-hotel-reservations/). We could use the waiting list variable to analyze further, assuming that these hotels are top-rated/popular; thus, people need to book very advanced.
+
+## 3. Seasonality
+```{r Seasonality}
+arrival_months <- hotel_booking %>% 
+  mutate(arrival_date_month = factor(arrival_date_month, levels = c(
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ), ordered = TRUE))
+
+
+ggplot(data = arrival_months, aes(x = arrival_date_month, y = prop.table(stat(count)), fill = factor(is_canceled), label = (prop.table(stat(count))))) +
+  geom_bar() +
+  labs(title = "Reservation Status by Months", x = "Month", y = "Count") +
+  scale_fill_discrete(name = "Reservation Status", breaks = c(0, 1), labels = c("Not Canceled", "Canceled")) +
+  scale_x_discrete(labels = month.abb) +
+  theme_classic()
+  #facet_wrap(~hotel)
+```
+The summer season, especially in July and August, is the peak season for hotels; there are many bookings. However, the cancelation rate in this season is also the highest.
+
+
+## 4. Cancelation by Market Segment 
+```{r Cancelation by Market Segment }
+hotel_booking %>% 
+  drop_na() %>%  # removing the undefined segementation
+  group_by(market_segment) %>% 
+  ggplot(data = ., aes(y = market_segment, fill = factor(is_canceled))) +
+  labs(title = "Cancelation by Market Segment", y = "Market Segment", x = "Frequency") +
+  scale_fill_discrete(name = "Reservation Status", breaks = c(0, 1), labels = c("Not Canceled", "Canceled")) +
+  geom_bar() +
+  theme_classic()
+```
+Customers who made their reservations by Online Travel Agents, Groups, and Offline Travel Agents or Tour Operators are more likely to cancel their bookings. [Based on our research](https://blog.netaffinity.com/high-cancellation-rates/), 
+
+## 5. Customer Type
+```{r Customer Type}
+hotel_booking %>% 
+  drop_na() %>% 
+  group_by(customer_type) %>% 
+  ggplot(data = ., aes(x = customer_type, fill = factor(is_canceled))) +
+  labs(title = "Cancelation by Customer Types", x = "Customer ", y = "Frequency") +
+  scale_fill_discrete(name = "Reservation Status", breaks = c(0, 1), labels = c("Not Canceled", "Canceled")) +
+  geom_bar() +
+  theme_classic()
+```
+Transient customers are likely to make cancelation than any other customer types. We are assuming, transient customers consist of business people.
+
+# Analysis plan
+
+Based on previous studies and EDA, we come up with the following hypotheses:
+
+* H1: People will likely to cancel their reservations if they made bookings far in advance or at least 100 days before the arrival date.
+* H2: Cancelation is higher during the peak seasons which is in the summer.
+* H3: People who make their reservation through online travel again will likely to cancel.
+
+We want to see the connection between the predicted and predictors variables.
+
+# Issues
+1. We do not really sure and understand how to conduct the further statistical test for this analysis. But, we want to see the connection between cancelation and the factors which are lead time, seasonality, and market segments.
+2. We were trying to see the distribution for variable lead_time. The histogram is highly skewed to the left and have a lot of 0 number, which we can't do log transformation as well to see the normal distribution. How can we manage and conclude if we have that kind of chart?
+3. There are some missing values in the arrival_date that explains seasonality. Our data consist the year of 2015, 2016, and 2017. However, we are missing some data for some months in 2016 and 2017. What should we do about this lack of information?
+
